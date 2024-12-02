@@ -110,7 +110,6 @@ impl IsolationForest {
     }
 }
 
-
 fn generate_fake_data(n_normal: usize, n_path_traversal: usize, n_xss: usize) -> Vec<(String, AttackType)> {
     let mut data = Vec::new();
     let normal_urls = generate_normal_urls(n_normal);
@@ -203,22 +202,21 @@ fn main() {
         "--check" => {
             // Load the trained model from the file
             let loaded_forest: Vec<(String, AttackType, AttackType)> = IsolationForest::load_from_file("isolation_forest_model.json");
-            let compiled_forest = generate_feature_vector(&loaded_forest);
 
             // Generate random URLs and try to detect attacks
             println!("Url, Attack or not ?");
             for _ in 0..100 {
                 let url = generate_random_url(true);
                 let starttimeinms = std::time::Instant::now();
-                let is_attack = detect_attack(&compiled_forest, &url);
+                let is_attack = detect_attack(&loaded_forest, &url);
                 //let is_attack = false;
                 let predicted_attack_type = if is_attack {
                     "Attack"
                 } else {
                     "Normal"
                 };
-                let total_time_in_ms = starttimeinms.elapsed().as_millis();
-                println!("url in {}: {}, {}", total_time_in_ms, url, predicted_attack_type);
+                let total_time = starttimeinms.elapsed().as_micros();
+                println!("url in {}: {}, {}", total_time, url, predicted_attack_type);
             }
         }
         _ => {
@@ -228,19 +226,7 @@ fn main() {
 }
 
 
-fn detect_attack(forest: &Forest<f64, 6>, url: &str) -> bool {
-
-    // Compute anomaly score for the URL
-    let score = forest.score(&extract_features(url));
-
-    // Define a threshold for classifying URLs as attacks
-    let threshold = 0.5;
-
-    // If the score exceeds the threshold, classify it as an attack
-    score > threshold
-}
-
-fn generate_feature_vector(data: &[(String, AttackType, AttackType)]) -> Forest<f64, 6>{
+fn detect_attack(data: &[(String, AttackType, AttackType)], url: &str) -> bool {
     // Convert the data to feature vectors
     let feature_vectors: Vec<_> = data.iter().map(|(url, _, _)| extract_features(url)).collect();
 
@@ -258,8 +244,17 @@ fn generate_feature_vector(data: &[(String, AttackType, AttackType)]) -> Forest<
         extension_level: extension_level-1,
     };
     let forest = Forest::from_slice(&feature_vectors, &options).expect("Failed to create Isolation Forest");
-    return forest;
+
+    // Compute anomaly score for the URL
+    let score = forest.score(&extract_features(url));
+
+    // Define a threshold for classifying URLs as attacks
+    let threshold = 0.5;
+
+    // If the score exceeds the threshold, classify it as an attack
+    score > threshold
 }
+
 
 fn extract_features(url: &str) -> [f64; 6] {
     // Extract more relevant features from the URL
